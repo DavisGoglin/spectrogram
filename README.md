@@ -4,13 +4,15 @@
 > language model.
 > I don't have the audio background to verify anything it wrote, it just looks roughly accurate.
 
-A single-page web app for practising **Japanese pitch accent**. It
+A single-page web app for practicing Japanese pitch accent. It
 tracks the fundamental frequency of your microphone in real time and
 scrolls it right-to-left as a pitch contour, optionally over a spectrogram.
 You can load a reference audio file, compare its pitch against yours, and
 record/replay your own attempts.
 
-Hosted here: https://davisgoglin.github.io/spectrogram/
+All processing is done in the browser, there isn't a server component. 
+
+An instance is hosted here: https://davisgoglin.github.io/spectrogram/
 
 ---
 
@@ -44,8 +46,7 @@ python3 -m http.server 8000 --bind 127.0.0.1
 
 ### Option B — from another device (phone, laptop) over HTTPS
 
-`serve.py` serves the folder over HTTPS with a self-signed certificate
-(generated with `openssl`; no third-party packages needed).
+`serve.py` serves the folder over HTTPS with a self-signed certificate.
 
 ```bash
 cd spectrogram
@@ -71,7 +72,7 @@ python3 serve.py
 
 ## Recording notes
 
-- Recordings are analysed with the currently selected pitch method and drawn as
+- Recordings are analyzed with the currently selected pitch method and drawn as
   a separate trace while they play back.
 - **Clips are not persisted** across reloads — download the WAV if you want to
   keep one.
