@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Japanese Pitch Accent Analyzer</title>
+<style>
+:root{
+  --bg:#05060a;
+  --panel:rgba(14,16,24,0.88);
+  --line:#2a2f42;
+  --text:#e8ecf5;
+  --muted:#8b93a8;
+  --mic:#39ff9e;
+  --ref:#ff8a3d;
+  --rec:#c792ea;
+  --accent:#5aa9ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;-webkit-user-select:none;user-select:none}
+#view{position:fixed;top:0;left:0;width:100%;height:100%;display:block;background:var(--bg)}
+#panel{position:fixed;top:12px;left:12px;width:min(370px,calc(100vw - 24px));max-height:calc(100% - 24px);overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  backdrop-filter:blur(8px);font-size:12px;z-index:10;box-shadow:0 8px 30px rgba(0,0,0,.55)}
+body.panel-hidden #panel{display:none}
+#panelHeader{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+#panel h1{flex:1;font-size:13px;margin:0;letter-spacing:.03em}
+.iconBtn{padding:2px 9px;font-size:15px;line-height:1.3}
+.row{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+.row label{flex:1 1 auto;color:var(--muted)}
+details{border-top:1px solid var(--line);margin-top:8px}
+details:first-of-type{border-top:none}
+summary{cursor:pointer;list-style:none;color:var(--muted);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;padding:8px 0;user-select:none;display:flex;align-items:center;gap:6px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"\25B8";display:inline-block;transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+.section{padding:0 0 8px}
+.slider{margin:2px 0 8px}
+.slabel{display:flex;justify-content:space-between;align-items:baseline;color:var(--muted);margin-bottom:3px;gap:8px}
+.slabel b{color:var(--text);font-weight:600}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0}
+.checks label,.inline{color:var(--muted);display:flex;align-items:center;gap:5px}
+.btnrow{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+button{background:#1b2030;color:var(--text);border:1px solid var(--line);border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.on{background:#123a2a;border-color:var(--mic);color:var(--mic)}
+#playBtn{min-width:100px}
+#stopBtn{min-width:72px}
+#holdBtn{touch-action:none;user-select:none}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=file]{width:100%;font-size:11px;color:var(--muted)}
+select{background:#1b2030;color:var(--text);border:1px solid var(--line);border-radius:8px;
+  padding:5px 8px;font:inherit;font-size:12px}
+.status{color:var(--muted);font-size:11px;line-height:1.5;word-break:break-word}
+hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+.legend{display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:16px;height:3px;border-radius:2px;
+  margin-right:5px;vertical-align:middle}
+.legend .mic::before{background:var(--mic)}
+.legend .ref::before{background:var(--ref)}
+.legend .rec::before{background:var(--rec)}
+#hud{position:fixed;right:12px;bottom:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:8px 12px;font-size:12px;z-index:10;display:flex;gap:16px;
+  box-shadow:0 8px 30px rgba(0,0,0,.55)}
+#hud b{font-weight:600}
+.micColor{color:var(--mic)}
+.refColor{color:var(--ref)}
+.recColor{color:var(--rec)}
+#togglePanel{position:fixed;top:12px;left:12px;z-index:11;display:none}
+body.panel-hidden #togglePanel{display:block}
+#help{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+  color:var(--muted);font-size:13px;z-index:5;pointer-events:none;transition:opacity .6s;line-height:1.8;
+  text-shadow:0 2px 12px #000}
+#help.hidden{opacity:0}
+#recBadge{position:fixed;top:12px;right:12px;z-index:12;display:none;align-items:center;gap:6px;
+  background:rgba(90,0,0,.72);color:#ff5a5a;border:1px solid #ff5a5a;border-radius:8px;
+  padding:4px 10px;font-size:12px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#recBadge.on{display:inline-flex;animation:recblink 1s steps(2,end) infinite}
+@keyframes recblink{50%{opacity:.35}}
+#dropzone{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+  background:rgba(5,6,10,.72);border:3px dashed var(--accent);color:var(--text);
+  font-size:15px;letter-spacing:.04em;pointer-events:none}
+#dropzone.on{display:flex}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="help"><b>Start mic</b> and allow access, then speak &mdash; pitch scrolls right to left.<br>
+Load a reference file, or hold <b>V</b> to record your own take.</div>
+
+<div id="recBadge">&#9679; REC</div>
+<div id="dropzone">Drop an audio file to load it as the reference</div>
+
+<button id="togglePanel">Show panel</button>
+
+<div id="panel">
+  <div id="panelHeader">
+    <h1>Pitch Accent</h1>
+    <button id="hideBtn" class="iconBtn" title="Hide panel (H)">&times;</button>
+  </div>
+
+  <div class="btnrow">
+    <button id="micBtn" style="flex:1">&#9679; Start mic</button>
+  </div>
+  <div id="micStatus" class="status">microphone off</div>
+  <div class="slider" style="margin-top:8px">
+    <div class="slabel"><span>Microphone</span></div>
+    <select id="micSelect" style="width:100%" disabled></select>
+  </div>
+
+  <details open id="secRef">
+    <summary>Reference</summary>
+    <div class="section">
+      <input type="file" id="fileInput" accept="audio/*"/>
+      <div class="status" style="margin-top:4px">or drop an audio file anywhere on the page</div>
+      <div class="btnrow">
+        <button id="playBtn" disabled>&#9654; Play</button>
+        <button id="stopBtn" disabled>&#9632; Stop</button>
+        <label class="inline"><input type="checkbox" id="loopChk" checked/> loop</label>
+      </div>
+      <div id="refInfo" class="status"></div>
+      <div class="slider">
+        <div class="slabel"><span>Repeat delay</span><span><b id="delayVal">1.0</b> s</span></div>
+        <input type="range" id="repeatDelay" min="0" max="5" step="0.1" value="1"/>
+      </div>
+      <div class="slider">
+        <div class="slabel"><span>Playback speed</span><span><b id="rateVal">1.00&times;</b></span></div>
+        <input type="range" id="playbackRate" min="0.5" max="1" step="0.05" value="1"/>
+      </div>
+    </div>
+  </details>
+
+  <details open id="secRec">
+    <summary>Record</summary>
+    <div class="section">
+      <div class="btnrow">
+        <button id="recBtn">&#9679; Rec</button>
+        <button id="holdBtn" title="Hold to record, release to hear it back">&#9679; Hold</button>
+        <button id="replayBtn" disabled>&#9654; Replay</button>
+        <button id="downloadBtn" disabled>&#11015; WAV</button>
+      </div>
+      <div class="checks">
+        <label style="grid-column:1 / -1"><input type="checkbox" id="pauseRefChk" checked/> pause reference while recording</label>
+      </div>
+      <div id="recInfo" class="status">Hold <b>V</b> / <b>&#9679; Hold</b> to record, release to play &middot; <b>R</b> toggle &middot; <b>P</b> replay</div>
+    </div>
+  </details>
+
+  <details open id="secDisplay">
+    <summary>Display</summary>
+    <div class="section">
+      <div class="slider">
+        <div class="slabel"><span>Low</span><span><b id="minVal">60</b> Hz</span></div>
+        <input type="range" id="minF" min="40" max="300" step="5" value="60"/>
+      </div>
+      <div class="slider">
+        <div class="slabel"><span>High</span><span><b id="maxVal">500</b> Hz</span></div>
+        <input type="range" id="maxF" min="150" max="1500" step="10" value="500"/>
+      </div>
+      <div class="slider">
+        <div class="slabel"><span>Scroll speed</span><span><b id="spdVal">150</b> px/s</span></div>
+        <input type="range" id="speed" min="100" max="1000" step="10" value="150"/>
+      </div>
+      <div class="btnrow" style="justify-content:space-between">
+        <span style="color:var(--muted)">Pitch method</span>
+        <select id="methodSel">
+          <option value="praat">Praat-style (AC + path)</option>
+          <option value="yin">YIN</option>
+          <option value="ac">Autocorrelation</option>
+          <option value="none">None (spectrogram only)</option>
+        </select>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="specChk" checked/> spectrogram</label>
+        <label><input type="checkbox" id="gridChk" checked/> grid</label>
+        <label><input type="checkbox" id="logChk" checked/> log axis</label>
+      </div>
+      <div class="btnrow">
+        <button id="pauseBtn">&#9208; Pause</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+  </details>
+
+  <div class="legend"><span class="mic">mic</span><span class="ref">reference</span><span class="rec">clip</span></div>
+  <div class="status" style="margin-top:8px">Hotkeys: <b>V</b> hold-record &middot; <b>R</b> record &middot; <b>P</b> replay &middot; <b>S</b> pause &middot; <b>H</b> panel</div>
+</div>
+
+<div id="hud">
+  <span class="micColor">mic <b id="micHz">--</b></span>
+  <span class="refColor">ref <b id="refHz">--</b></span>
+  <span class="recColor">clip <b id="clipHz">--</b></span>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- audio
+let AC = null;
+function ensureAudio() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 0 });
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+// ---------------------------------------------------------------- state
+const state = {
+  minF: 60,
+  maxF: 500,
+  speed: 150,        // px per second == steps per second (1px per step)
+  repeatDelay: 1.0,  // seconds between reference-file repeats
+  playbackRate: 1.0, // uploaded-file playback speed (tape-style)
+  pauseRefOnRec: true, // pause the reference while recording (avoid mic bleed)
+  showSpec: true,
+  showGrid: true,
+  logScale: true,     // logarithmic (musical) frequency axis
+  method: 'praat',    // pitch detector: 'praat' | 'yin' | 'ac'
+  paused: false,      // freeze the scrolling timeline (audio keeps running)
+  running: false,    // timeline advances only while listening / playing
+};
+
+// ---------------------------------------------------------------- settings persistence
+const SETTINGS_KEY = 'jpPitchAnalyzer.settings.v2';
+let savedUI = { loop: true, panelHidden: false, sections: { secRef: true, secRec: true, secDisplay: true } };
+
+function loadSettings() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch (e) {}
+  if (!s || typeof s !== 'object') return;
+  const clamp = (v, lo, hi, d) =>
+    (typeof v === 'number' && isFinite(v)) ? Math.min(hi, Math.max(lo, v)) : d;
+  state.minF = clamp(s.minF, 40, 300, state.minF);
+  state.maxF = clamp(s.maxF, 150, 1500, state.maxF);
+  if (state.maxF < state.minF + 20) state.maxF = state.minF + 20;
+  state.speed = clamp(s.speed, 100, 1000, state.speed);
+  state.repeatDelay = clamp(s.repeatDelay, 0, 5, state.repeatDelay);
+  state.playbackRate = clamp(s.playbackRate, 0.5, 1, state.playbackRate);
+  if (typeof s.showSpec === 'boolean') state.showSpec = s.showSpec;
+  if (typeof s.showGrid === 'boolean') state.showGrid = s.showGrid;
+  if (typeof s.logScale === 'boolean') state.logScale = s.logScale;
+  if (s.method === 'praat' || s.method === 'yin' || s.method === 'ac' || s.method === 'none') state.method = s.method;
+  savedUI.loop = typeof s.loop === 'boolean' ? s.loop : true;
+  savedUI.panelHidden = typeof s.panelHidden === 'boolean' ? s.panelHidden : false;
+  if (typeof s.pauseRefOnRec === 'boolean') state.pauseRefOnRec = s.pauseRefOnRec;
+  if (s.sections && typeof s.sections === 'object') Object.assign(savedUI.sections, s.sections);
+}
+
+function methodLabel() {
+  return state.method === 'praat' ? 'Praat-style'
+    : state.method === 'yin' ? 'YIN'
+    : state.method === 'ac' ? 'autocorrelation'
+    : 'none';
+}
+
+let persistTimer = null;
+function persistSettings() {
+  if (persistTimer) return; // throttle: at most one write per 200ms
+  persistTimer = setTimeout(() => { persistTimer = null; writeSettings(); }, 200);
+}
+function writeSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      minF: state.minF, maxF: state.maxF, speed: state.speed, repeatDelay: state.repeatDelay,
+      playbackRate: state.playbackRate,
+      pauseRefOnRec: state.pauseRefOnRec,
+      sections: {
+        secRef: $('secRef').open,
+        secRec: $('secRec').open,
+        secDisplay: $('secDisplay').open,
+      },
+      showSpec: state.showSpec, showGrid: state.showGrid, logScale: state.logScale,
+      method: state.method,
+      loop: $('loopChk').checked,
+      panelHidden: document.body.classList.contains('panel-hidden'),
+    }));
+  } catch (e) { /* private mode / storage disabled */ }
+}
+window.addEventListener('pagehide', writeSettings);
+
+// ---------------------------------------------------------------- layout
+const view = $('view');
+const vctx = view.getContext('2d', { alpha: false });
+let W = 0, H = 0, dpr = 1;
+let spec = null, sctx = null, specX = 0, colImg = null;
+
+// ---------------------------------------------------------------- histories
+// One value per scroll step (absolute step index == timeline position).
+const micHist = [];   // microphone F0 in Hz, or -1
+const refHist = [];   // reference F0 in Hz, or -1
+const playHist = [];  // recorded-clip playback F0 in Hz, or -1
+let stepCount = 0;
+const MAX_STEPS = 20000;
+
+// ---------------------------------------------------------------- mic state
+let micOn = false, micStream = null, micSource = null, analyser = null, silentSink = null;
+let micBusy = false;
+let refAnalysisSeq = 0, recAnalysisSeq = 0;
+let selectedMicId = '';
+let BIN_COUNT = 1024;
+let latestFreq = new Uint8Array(BIN_COUNT);
+let timeBuf = null, dsBuf = null;
+let micValue = -1;
+let smoothPitch = 0, pitchRing = [];
+
+// ---------------------------------------------------------------- reference
+let refBuffer = null, refSource = null, refPlaying = false;
+let refStartedAt = 0, refOffset = 0;
+let refTimes = null, refFreqs = null;
+let lastRefPos = -1;
+let refPending = false, repeatTimer = null;
+let refRate = 1;   // playback rate currently applied to the reference source
+
+// ---------------------------------------------------------------- recording
+let mediaRecorder = null, recording = false;
+let recAutoPlay = false, pttHeld = false;
+let recBuffer = null, recTimes = null, recFreqs = null;
+let recSource = null, recPlaying = false, recStartedAt = 0, recLastPos = -1;
+
+// ---------------------------------------------------------------- colours
+// Cool blue/cyan spectrogram ramp. Deliberately avoids green, orange and
+// purple so the saturated pitch traces (mic/ref/clip) always stand out.
+const LUT = (() => {
+  const stops = [
+    [0.00,   4,   6,  14],
+    [0.20,  10,  22,  60],
+    [0.42,  18,  66, 140],
+    [0.64,  40, 130, 200],
+    [0.84, 120, 200, 245],
+    [1.00, 236, 248, 255],
+  ];
+  const arr = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let a = stops[0], b = stops[stops.length - 1];
+    for (let s = 0; s < stops.length - 1; s++) {
+      if (t >= stops[s][0] && t <= stops[s + 1][0]) { a = stops[s]; b = stops[s + 1]; break; }
+    }
+    const f = (t - a[0]) / Math.max(1e-6, b[0] - a[0]);
+    arr[i * 3]     = Math.round(a[1] + (b[1] - a[1]) * f);
+    arr[i * 3 + 1] = Math.round(a[2] + (b[2] - a[2]) * f);
+    arr[i * 3 + 2] = Math.round(a[3] + (b[3] - a[3]) * f);
+  }
+  return arr;
+})();
+
+// ---------------------------------------------------------------- geometry
+function yForFreq(f) {
+  const t = state.logScale
+    ? Math.log(f / state.minF) / Math.log(state.maxF / state.minF)
+    : (f - state.minF) / (state.maxF - state.minF);
+  return (1 - t) * (H - 1);
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, Math.floor(window.innerWidth));
+  H = Math.max(240, Math.floor(window.innerHeight));
+  view.width = Math.floor(W * dpr);
+  view.height = Math.floor(H * dpr);
+  vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Offscreen ring-buffer spectrogram: 2 screens wide, window slides across it.
+  spec = document.createElement('canvas');
+  spec.width = 2 * W;
+  spec.height = H;
+  sctx = spec.getContext('2d');
+  sctx.fillStyle = '#000';
+  sctx.fillRect(0, 0, 2 * W, H);
+  specX = W;
+  colImg = sctx.createImageData(1, H);
+  for (let y = 0; y < H; y++) colImg.data[y * 4 + 3] = 255;
+
+  micHist.length = 0;
+  refHist.length = 0;
+  playHist.length = 0;
+  stepCount = 0;
+}
+
+// ---------------------------------------------------------------- spectrogram
+function drawSpecColumn() {
+  if (!sctx) return;
+  const nyq = (AC ? AC.sampleRate : 48000) / 2;
+  const bins = latestFreq.length;
+  const logRatio = Math.log(state.maxF / state.minF);
+  const span = state.maxF - state.minF;
+  const d = colImg.data;
+
+  for (let y = 0; y < H; y++) {
+    const t = 1 - y / ((H - 1) || 1);
+    const f = state.logScale ? state.minF * Math.exp(logRatio * t) : state.minF + span * t;
+    const pos = f / nyq * bins;
+    let v;
+    if (pos <= 0) {
+      v = latestFreq[0];
+    } else if (pos >= bins - 1) {
+      v = latestFreq[bins - 1];
+    } else {
+      const i0 = pos | 0;
+      const frac = pos - i0;
+      v = latestFreq[i0] + (latestFreq[i0 + 1] - latestFreq[i0]) * frac;
+    }
+    const c = (v | 0) * 3;
+    const o = y * 4;
+    d[o]     = LUT[c];
+    d[o + 1] = LUT[c + 1];
+    d[o + 2] = LUT[c + 2];
+  }
+
+  sctx.putImageData(colImg, specX, 0);
+  specX++;
+  if (specX >= 2 * W) {
+    sctx.drawImage(spec, W, 0, W, H, 0, 0, W, H);
+    specX = W;
+  }
+}
+
+function clearSpec() {
+  if (!sctx) return;
+  sctx.fillStyle = '#000';
+  sctx.fillRect(0, 0, 2 * W, H);
+  specX = W;
+}
+
+// ---------------------------------------------------------------- timeline
+function doStep() {
+  stepCount++;
+  drawSpecColumn();
+
+  micHist.push(micValue);
+
+  let rv = -1;
+  if (refPlaying && refTimes) {
+    const pos = playbackPos();
+    if (pos >= 0) {
+      if (lastRefPos >= 0 && pos < lastRefPos - 0.001) rv = -1; // loop seam
+      else {
+        const f = valueAt(refTimes, refFreqs, pos);
+        rv = f > 0 ? f * refRate : -1; // match the tape-style pitch shift
+      }
+      lastRefPos = pos;
+    }
+  } else {
+    lastRefPos = -1;
+  }
+  refHist.push(rv);
+
+  let pv = -1;
+  if (recPlaying && recTimes) {
+    const pos = recPlayPos();
+    if (pos >= 0) pv = valueAt(recTimes, recFreqs, pos);
+  }
+  playHist.push(pv);
+
+  if (micHist.length > MAX_STEPS) {
+    micHist.shift();
+    refHist.shift();
+    playHist.shift();
+  }
+}
+
+function valueAt(times, freqs, t) {
+  if (!times || !times.length) return -1;
+  let lo = 0, hi = times.length - 1, idx = -1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1;
+    if (times[m] >= t) { idx = m; hi = m - 1; } else lo = m + 1;
+  }
+  if (idx < 0) return freqs[freqs.length - 1];       // past the end
+  if (idx === 0) return t < times[0] ? -1 : freqs[0];
+  const f0 = freqs[idx - 1], f1 = freqs[idx];
+  if (f0 <= 0 || f1 <= 0) return (t - times[idx - 1]) < (times[idx] - t) ? f0 : f1;
+  const a = (t - times[idx - 1]) / ((times[idx] - times[idx - 1]) || 1);
+  return f0 + (f1 - f0) * Math.max(0, Math.min(1, a)); // interpolate: no staircase
+}
+
+// ---------------------------------------------------------------- input
+function updateInputs() {
+  if (analyser && micOn) {
+    analyser.getByteFrequencyData(latestFreq);
+    analyser.getFloatTimeDomainData(timeBuf);
+
+    // Use only the most recent 2048 samples, downsampled x2 (to 24 kHz).
+    const n = dsBuf.length;
+    const off = Math.max(0, timeBuf.length - n * 2);
+    for (let i = 0; i < n; i++) dsBuf[i] = 0.5 * (timeBuf[off + 2 * i] + timeBuf[off + 2 * i + 1]);
+
+    if (state.method === 'none') {
+      micValue = -1; // pitch tracking off; spectrogram still runs
+    } else if (state.method === 'praat') {
+      const floor = Math.max(40, state.minF * 0.8);
+      const ceiling = Math.max(floor * 1.2, state.maxF * 1.3);
+      const f = praatLivePitch(dsBuf, AC.sampleRate / 2, floor, ceiling);
+      micValue = f > 0 ? f : -1;
+    } else {
+      const r = detectPitch(dsBuf, AC.sampleRate / 2, state.minF, state.maxF);
+      if (r.freq > 0 && r.clarity > 0.55) {
+        let f = r.freq;
+        if (smoothPitch > 0) {
+          let ratio = f / smoothPitch;
+          while (ratio > 1.8) { f /= 2; ratio = f / smoothPitch; }
+          while (ratio < 0.55) { f *= 2; ratio = f / smoothPitch; }
+        }
+        pitchRing.push(f);
+        if (pitchRing.length > 3) pitchRing.shift();
+        const sorted = [...pitchRing].sort((a, b) => a - b);
+        f = sorted[sorted.length >> 1];
+        smoothPitch = smoothPitch > 0 ? smoothPitch * 0.5 + f * 0.5 : f;
+        micValue = (smoothPitch >= state.minF * 0.9 && smoothPitch <= state.maxF * 1.1) ? smoothPitch : -1;
+      } else {
+        micValue = -1;
+        smoothPitch = 0;
+        pitchRing.length = 0;
+      }
+    }
+  } else {
+    latestFreq.fill(0);
+    micValue = -1;
+  }
+}
+
+// ---------------------------------------------------------------- render
+function drawGrid() {
+  const freqs = [50, 60, 70, 80, 90, 100, 120, 150, 180, 200, 240, 300,
+                 360, 420, 500, 600, 700, 800, 1000, 1200, 1500];
+  vctx.save();
+  vctx.font = '11px ui-monospace, monospace';
+  vctx.textBaseline = 'middle';
+  for (const f of freqs) {
+    if (f < state.minF * 0.99 || f > state.maxF * 1.01) continue;
+    const y = Math.round(yForFreq(f)) + 0.5;
+    vctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    vctx.lineWidth = 1;
+    vctx.beginPath();
+    vctx.moveTo(0, y);
+    vctx.lineTo(W, y);
+    vctx.stroke();
+    vctx.fillStyle = 'rgba(255,255,255,0.45)';
+    vctx.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), 6, y - 8);
+  }
+  vctx.restore();
+}
+
+function drawTrack(hist, color, width, dashed) {
+  const len = hist.length;
+  if (!len) return;
+  const x0 = W - len;
+  vctx.save();
+  vctx.lineJoin = 'round';
+  vctx.lineCap = 'round';
+  vctx.beginPath();
+  let started = false;
+  for (let k = 0; k < len; k++) {
+    const x = x0 + k;
+    if (x < -2) continue;
+    if (x > W + 2) break;
+    const f = hist[k];
+    if (f > 0) {
+      const y = yForFreq(f);
+      if (!started) { vctx.moveTo(x, y); started = true; }
+      else vctx.lineTo(x, y);
+    } else {
+      started = false;
+    }
+  }
+
+  // Dark halo first so the line reads over bright spectrogram regions.
+  vctx.setLineDash([]);
+  vctx.strokeStyle = 'rgba(0,0,0,0.62)';
+  vctx.lineWidth = width + 3;
+  vctx.stroke();
+
+  // Saturated trace on top.
+  if (dashed) vctx.setLineDash([5, 4]);
+  vctx.strokeStyle = color;
+  vctx.lineWidth = width;
+  vctx.stroke();
+
+  // Bright dot for the most recent value (with its own halo).
+  const last = hist[len - 1];
+  if (last > 0 && x0 + len - 1 >= 0) {
+    const dx = x0 + len - 1, dy = yForFreq(last), r = width + 1.2;
+    vctx.setLineDash([]);
+    vctx.beginPath();
+    vctx.arc(dx, dy, r + 1.6, 0, Math.PI * 2);
+    vctx.fillStyle = 'rgba(0,0,0,0.62)';
+    vctx.fill();
+    vctx.beginPath();
+    vctx.arc(dx, dy, r, 0, Math.PI * 2);
+    vctx.fillStyle = color;
+    vctx.fill();
+  }
+  vctx.restore();
+}
+
+function render() {
+  if (state.showSpec && sctx) {
+    vctx.drawImage(spec, specX - W, 0, W, H, 0, 0, W, H);
+  } else {
+    vctx.fillStyle = '#05060a';
+    vctx.fillRect(0, 0, W, H);
+  }
+  if (state.showGrid) drawGrid();
+
+  // "now" cursor at the right edge.
+  vctx.save();
+  vctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  vctx.lineWidth = 1;
+  vctx.beginPath();
+  vctx.moveTo(W - 0.5, 0);
+  vctx.lineTo(W - 0.5, H);
+  vctx.stroke();
+  vctx.restore();
+
+  drawTrack(refHist, '#ff8a3d', 2, true);
+  drawTrack(playHist, '#c792ea', 2, true);
+  drawTrack(micHist, recording ? '#ff5a5a' : '#39ff9e', 2.5, false);
+}
+
+// ---------------------------------------------------------------- main loop
+let lastTs = 0, accum = 0;
+
+function frame(ts) {
+  requestAnimationFrame(frame);
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+  if (dt > 0.25) dt = 0.25;
+
+  updateInputs();
+
+  if (state.running && !state.paused) {
+    accum += dt;
+    const sps = state.speed;
+    let n = Math.floor(accum * sps);
+    accum -= n / sps;
+    for (let k = 0; k < n; k++) doStep();
+  }
+
+  render();
+
+  $('micHz').textContent = micValue > 0 ? micValue.toFixed(1) + ' Hz' : '--';
+  const rp = playbackPos();
+  const rv = refPlaying && rp >= 0 ? valueAt(refTimes, refFreqs, rp) : -1;
+  const rf = rv > 0 ? rv * refRate : -1;
+  $('refHz').textContent = rf > 0 ? rf.toFixed(1) + ' Hz' : '--';
+  const cp = recPlayPos();
+  const cf = recPlaying && cp >= 0 ? valueAt(recTimes, recFreqs, cp) : -1;
+  $('clipHz').textContent = cf > 0 ? cf.toFixed(1) + ' Hz' : '--';
+}
+
+// ---------------------------------------------------------------- pitch detection
+// Dispatch between the two lightweight detectors (see the "Pitch method" select).
+//   ac  - normalized autocorrelation, first strong peak
+//   yin - cumulative mean normalized difference (YIN)
+function detectPitch(buf, sr, minF, maxF) {
+  return state.method === 'yin'
+    ? detectPitchYIN(buf, sr, minF, maxF)
+    : detectPitchAC(buf, sr, minF, maxF);
+}
+
+// Normalized autocorrelation; picks the first strong periodicity (helps avoid
+// sub-harmonic / octave-down errors) with parabolic interpolation.
+function detectPitchAC(buf, sr, minF, maxF) {
+  const N = buf.length;
+  let mean = 0;
+  for (let i = 0; i < N; i++) mean += buf[i];
+  mean /= N;
+
+  let rms = 0;
+  for (let i = 0; i < N; i++) {
+    const d = buf[i] - mean;
+    rms += d * d;
+  }
+  rms = Math.sqrt(rms / N);
+  if (rms < 0.006) return { freq: -1, clarity: 0 };
+
+  const minLag = Math.max(2, Math.floor(sr / maxF));
+  const maxLag = Math.min(N - 2, Math.ceil(sr / minF));
+  if (maxLag <= minLag) return { freq: -1, clarity: 0 };
+
+  const x = new Float32Array(N);
+  for (let i = 0; i < N; i++) x[i] = buf[i] - mean;
+
+  const lagStart = Math.max(1, minLag - 1);
+  const corr = new Float32Array(maxLag + 2);
+  for (let lag = lagStart; lag <= maxLag; lag++) {
+    let sum = 0, e1 = 0, e2 = 0;
+    const lim = N - lag;
+    for (let i = 0; i < lim; i++) {
+      const a = x[i], b = x[i + lag];
+      sum += a * b;
+      e1 += a * a;
+      e2 += b * b;
+    }
+    corr[lag] = sum / Math.sqrt(e1 * e2 + 1e-12);
+  }
+
+  let gmax = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) if (corr[lag] > gmax) gmax = corr[lag];
+  if (gmax < 0.4) return { freq: -1, clarity: gmax };
+
+  const thresh = gmax * 0.85;
+  let best = -1;
+  // The true period may sit exactly on minLag, so test the boundary too.
+  if (minLag + 1 <= maxLag && corr[minLag] >= corr[minLag + 1] && corr[minLag] >= thresh) {
+    best = minLag;
+  }
+  if (best < 0) {
+    for (let lag = minLag + 1; lag < maxLag; lag++) {
+      if (corr[lag] >= corr[lag - 1] && corr[lag] > corr[lag + 1] && corr[lag] >= thresh) {
+        best = lag;
+        break;
+      }
+    }
+  }
+  if (best < 0) {
+    for (let lag = minLag; lag <= maxLag; lag++) if (corr[lag] === gmax) { best = lag; break; }
+  }
+  if (best < 0) return { freq: -1, clarity: gmax };
+
+  const y1 = corr[best - 1], y2 = corr[best], y3 = corr[best + 1];
+  const den = y1 - 2 * y2 + y3;
+  const shift = Math.abs(den) > 1e-9 ? 0.5 * (y1 - y3) / den : 0;
+  const lag = best + Math.max(-1, Math.min(1, shift));
+  const freq = sr / lag;
+  if (freq < minF * 0.9 || freq > maxF * 1.1) return { freq: -1, clarity: gmax };
+  return { freq, clarity: gmax };
+}
+
+// YIN: cumulative mean normalized difference function. Finds the first dip
+// below an absolute threshold, then interpolates. Robust against octave errors;
+// closely related to the classic autocorrelation approach used by Praat, while
+// staying O(window x lag) and allocation-light.
+function detectPitchYIN(buf, sr, minF, maxF) {
+  const N = buf.length;
+  let mean = 0;
+  for (let i = 0; i < N; i++) mean += buf[i];
+  mean /= N;
+
+  let rms = 0;
+  for (let i = 0; i < N; i++) {
+    const d = buf[i] - mean;
+    rms += d * d;
+  }
+  rms = Math.sqrt(rms / N);
+  if (rms < 0.006) return { freq: -1, clarity: 0 };
+
+  const x = new Float32Array(N);
+  for (let i = 0; i < N; i++) x[i] = buf[i] - mean;
+
+  const tauMin = Math.max(2, Math.floor(sr / maxF));
+  const tauMax = Math.min(N - 2, Math.ceil(sr / minF));
+  if (tauMax <= tauMin) return { freq: -1, clarity: 0 };
+
+  // Squared difference function.
+  const diff = new Float32Array(tauMax + 1);
+  for (let tau = 1; tau <= tauMax; tau++) {
+    let sum = 0;
+    const lim = N - tau;
+    for (let j = 0; j < lim; j++) {
+      const d = x[j] - x[j + tau];
+      sum += d * d;
+    }
+    diff[tau] = sum;
+  }
+
+  // Cumulative mean normalization, then pick the first dip under the threshold.
+  const dp = new Float32Array(tauMax + 1);
+  dp[0] = 1;
+  let running = 0;
+  for (let tau = 1; tau <= tauMax; tau++) {
+    running += diff[tau];
+    dp[tau] = running > 0 ? diff[tau] * tau / running : 1;
+  }
+
+  const threshold = 0.15;
+  let tau = -1;
+  for (let t = tauMin; t <= tauMax; t++) {
+    if (dp[t] < threshold) {
+      while (t + 1 <= tauMax && dp[t + 1] < dp[t]) t++;
+      tau = t;
+      break;
+    }
+  }
+  if (tau < 0) {
+    let minv = Infinity, mini = -1;
+    for (let t = tauMin; t <= tauMax; t++) if (dp[t] < minv) { minv = dp[t]; mini = t; }
+    if (mini < 0 || minv > 0.5) return { freq: -1, clarity: 1 - minv };
+    tau = mini;
+  }
+
+  let better = tau;
+  if (tau > 1 && tau < tauMax) {
+    const y1 = dp[tau - 1], y2 = dp[tau], y3 = dp[tau + 1];
+    const den = y1 - 2 * y2 + y3;
+    if (Math.abs(den) > 1e-9) better = tau + Math.max(-1, Math.min(1, 0.5 * (y1 - y3) / den));
+  }
+  const freq = sr / better;
+  const clarity = 1 - dp[tau];
+  if (freq < minF * 0.9 || freq > maxF * 1.1) return { freq: -1, clarity };
+  return { freq, clarity };
+}
+
+// ---------------------------------------------------------------- Praat-style pitch
+// Praat's "ac" method in spirit: Hann-windowed normalised autocorrelation,
+// local peak *candidates*, then a Viterbi path finder with octave-jump and
+// voiced/unvoiced costs. The path finder is what keeps the track smooth and
+// stops it locking onto a sub-harmonic of the real pitch.
+let _hann = new Map();
+function hannWindow(n) {
+  let w = _hann.get(n);
+  if (w) return w;
+  w = new Float32Array(n);
+  for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1));
+  _hann.set(n, w);
+  return w;
+}
+
+// Peak candidates for one frame. Returns {rms, candidates:[{f, strength}]}.
+function praatCandidates(buf, sr, floor, ceiling, silenceThreshold) {
+  const n = buf.length;
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += buf[i];
+  mean /= n;
+
+  const w = hannWindow(n);
+  const x = new Float32Array(n);
+  let rms = 0;
+  for (let i = 0; i < n; i++) {
+    const v = buf[i] - mean;
+    rms += v * v;
+    x[i] = v * w[i];
+  }
+  rms = Math.sqrt(rms / n);
+
+  const tMin = Math.max(2, Math.floor(sr / ceiling));
+  const tMax = Math.min(n - 2, Math.ceil(sr / floor));
+  if (rms < silenceThreshold || tMax <= tMin + 1) return { rms, candidates: [] };
+
+  const r = new Float32Array(tMax + 2);
+  for (let tau = Math.max(1, tMin - 1); tau <= tMax; tau++) {
+    let s = 0, e1 = 0, e2 = 0;
+    const lim = n - tau;
+    for (let i = 0; i < lim; i++) {
+      const a = x[i], b = x[i + tau];
+      s += a * b; e1 += a * a; e2 += b * b;
+    }
+    r[tau] = s / Math.sqrt(e1 * e2 + 1e-12);
+  }
+
+  const candidates = [];
+  for (let tau = tMin; tau <= tMax; tau++) {
+    if (r[tau] >= r[tau - 1] && r[tau] > r[tau + 1] && r[tau] > 0.1) {
+      const y1 = r[tau - 1], y2 = r[tau], y3 = r[tau + 1];
+      const den = y1 - 2 * y2 + y3;
+      const sh = Math.abs(den) > 1e-9 ? 0.5 * (y1 - y3) / den : 0;
+      const lag = tau + Math.max(-1, Math.min(1, sh));
+      const f = sr / lag;
+      if (f >= floor * 0.9 && f <= ceiling * 1.1) candidates.push({ f, strength: y2 });
+    }
+  }
+  candidates.sort((a, b) => b.strength - a.strength);
+  return { rms, candidates: candidates.slice(0, 6) };
+}
+
+function praatOpts(floor, ceiling) {
+  return {
+    floor, ceiling,
+    voicingThreshold: 0.55,
+    octaveCost: 0.01,
+    octaveJumpCost: 0.5,
+    voicedUnvoicedCost: 0.14,
+  };
+}
+
+// Viterbi over frames of candidate lists. Returns chosen state index per frame
+// (0 = unvoiced, k>0 = candidates[k-1]).
+function praatViterbi(frames, p) {
+  const T = frames.length;
+  if (!T) return [];
+  const dp = new Array(T), back = new Array(T);
+  let prevDp = null, prevCands = null;
+
+  for (let t = 0; t < T; t++) {
+    const cands = frames[t].candidates;
+    const K = cands.length;
+    const ns = K + 1;
+    const cur = new Float64Array(ns).fill(-Infinity);
+    const bk = new Int32Array(ns).fill(-1);
+    const local = new Float64Array(ns);
+    local[0] = p.voicingThreshold;
+    for (let k = 0; k < K; k++) {
+      local[k + 1] = cands[k].strength + p.octaveCost * Math.log2(cands[k].f / p.floor);
+    }
+
+    for (let b = 0; b < ns; b++) {
+      if (!prevDp) { cur[b] = local[b]; continue; }
+      let best = -Infinity, ba = -1;
+      for (let a = 0; a < prevDp.length; a++) {
+        if (prevDp[a] === -Infinity) continue;
+        let tr;
+        if (a === 0 && b === 0) tr = 0;
+        else if (a === 0 || b === 0) tr = -p.voicedUnvoicedCost;
+        else tr = -p.octaveJumpCost * Math.abs(Math.log2(cands[b - 1].f / prevCands[a - 1].f));
+        const v = prevDp[a] + tr;
+        if (v > best) { best = v; ba = a; }
+      }
+      if (best !== -Infinity) cur[b] = best + local[b];
+      bk[b] = ba;
+    }
+    dp[t] = cur; back[t] = bk;
+    prevDp = cur; prevCands = cands;
+  }
+
+  const chosen = new Array(T);
+  const lastDp = dp[T - 1];
+  let state = 0, bestLast = -Infinity;
+  for (let a = 0; a < lastDp.length; a++) if (lastDp[a] > bestLast) { bestLast = lastDp[a]; state = a; }
+  for (let t = T - 1; t >= 0; t--) { chosen[t] = state; state = back[t][state]; }
+  return chosen;
+}
+
+// Live tracker: keep a short rolling window of candidate frames and run the
+// same Viterbi path finder over it (causal, so no added latency).
+const liveFrames = [];
+const liveTail = [];
+const LIVE_MAX = 24;
+const LIVE_TAIL = 5;
+
+function praatLivePitch(buf, sr, floor, ceiling) {
+  liveFrames.push(praatCandidates(buf, sr, floor, ceiling, 0.006));
+  if (liveFrames.length > LIVE_MAX) liveFrames.shift();
+  const chosen = praatViterbi(liveFrames, praatOpts(floor, ceiling));
+  const st = chosen[chosen.length - 1];
+  const cands = liveFrames[liveFrames.length - 1].candidates;
+  liveTail.push(st > 0 ? cands[st - 1].f : -1);
+  if (liveTail.length > LIVE_TAIL) liveTail.shift();
+  return praatTailFilter(liveTail);
+}
+
+// Pull the newest value toward the median of the recent tail if it is a big
+// outlier. Requires a little voiced support before trusting an onset, which
+// drops isolated spikes and costs only ~2 frames (~33 ms) at segment starts.
+function praatTailFilter(arr) {
+  const last = arr[arr.length - 1];
+  const w = arr.filter(v => v > 0).sort((a, b) => a - b);
+  if (last <= 0) {
+    if (arr.length >= 5 && w.length >= arr.length - 1) return w[Math.floor(w.length / 2)];
+    return -1;
+  }
+  if (w.length < 3) return -1;
+  const m = w[Math.floor(w.length / 2)];
+  return Math.abs(Math.log2(last / m)) > 0.35 ? m : last;
+}
+
+// Offline post-filter: median/outlier pass, fill 1-frame holes, drop runs
+// shorter than ~3 frames. Removes transient noise misread as pitch.
+function praatPostFilter(freqs, k) {
+  const n = freqs.length, out = freqs.slice();
+  for (let i = 0; i < n; i++) {
+    const w = [];
+    for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) if (freqs[j] > 0) w.push(freqs[j]);
+    if (w.length >= 3) {
+      w.sort((a, b) => a - b);
+      const m = w[Math.floor(w.length / 2)];
+      if (freqs[i] > 0 && Math.abs(Math.log2(freqs[i] / m)) > 0.35) out[i] = m;
+      if (freqs[i] <= 0 && w.length >= 4) out[i] = m;
+    } else if (freqs[i] > 0) {
+      out[i] = -1;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- mic control
+// getUserMedia is only exposed in a secure context (https:// or localhost).
+function micEnvironmentProblem() {
+  if (!window.isSecureContext) {
+    return 'Microphone blocked: this page is not a secure context.\n' +
+      'Serve it over http://localhost or https:// instead of ' + location.protocol +
+      '//' + location.host + '  (or file://).';
+  }
+  if (!navigator.mediaDevices && !legacyGetUserMedia()) {
+    return 'This browser does not support microphone capture.';
+  }
+  return null;
+}
+
+function legacyGetUserMedia() {
+  return navigator.getUserMedia || navigator.webkitGetUserMedia ||
+         navigator.mozGetUserMedia || navigator.msGetUserMedia || null;
+}
+
+function getUserMediaCompat(constraints) {
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+  const legacy = legacyGetUserMedia();
+  if (!legacy) return Promise.reject(new Error('getUserMedia is not supported'));
+  return new Promise((resolve, reject) => legacy.call(navigator, constraints, resolve, reject));
+}
+
+function showMicProblem(msg) {
+  $('micStatus').textContent = msg;
+  $('micStatus').style.color = '#ff8a3d';
+  const help = $('help');
+  help.innerHTML = msg.replace(/\n/g, '<br>');
+  help.classList.remove('hidden');
+}
+
+async function startMic() {
+  if (micBusy || micOn) return; // guard against double-click / re-entry
+  const envProblem = micEnvironmentProblem();
+  if (envProblem) {
+    showMicProblem(envProblem);
+    return;
+  }
+  micBusy = true;
+  $('micBtn').disabled = true;
+  const ac = ensureAudio();
+  if (ac.resume) { try { await ac.resume(); } catch (e) {} }
+  try {
+    const stream = await getUserMediaCompat(micConstraints(selectedMicId));
+    micStream = stream;
+
+    // Ask the device for the smallest input buffer it will give us, and report
+    // the resulting latency so it is clear what the capture chain is doing.
+    const track = stream.getAudioTracks()[0];
+    let latMs = null;
+    if (track && track.applyConstraints) {
+      try { await track.applyConstraints({ latency: { ideal: 0 } }); } catch (e) {}
+      try {
+        const s = track.getSettings();
+        if (s && typeof s.latency === 'number') latMs = Math.round(s.latency * 1000);
+        if (s && s.deviceId) selectedMicId = s.deviceId;
+      } catch (e) {}
+    }
+
+    micSource = ac.createMediaStreamSource(stream);
+    analyser = ac.createAnalyser();
+    analyser.fftSize = 4096;            // finer bins -> less vertical stepping
+    analyser.smoothingTimeConstant = 0.2;
+    micSource.connect(analyser);
+
+    // Some browsers only refresh AnalyserNode data when the graph is being
+    // pulled all the way to the destination. A muted sink guarantees that,
+    // which removes a common source of input lag.
+    silentSink = ac.createGain();
+    silentSink.gain.value = 0;
+    analyser.connect(silentSink);
+    silentSink.connect(ac.destination);
+
+    BIN_COUNT = analyser.frequencyBinCount;
+    latestFreq = new Uint8Array(BIN_COUNT);
+    timeBuf = new Float32Array(analyser.fftSize);
+    dsBuf = new Float32Array(2048);
+
+    micOn = true;
+    updateRunning();
+    $('micBtn').textContent = 'Stop mic';
+    $('micBtn').classList.add('on');
+    $('micStatus').textContent =
+      'listening' + (latMs != null ? ' \u00b7 input latency ' + latMs + 'ms' : '');
+    $('micStatus').style.color = '';
+    hideHelp();
+    refreshMicDevices();
+  } catch (e) {
+    let msg = e && e.message ? e.message : String(e);
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+      msg = 'Microphone permission denied. Allow mic access in the address bar and retry.';
+    }
+    showMicProblem(msg);
+  } finally {
+    micBusy = false;
+    $('micBtn').disabled = false;
+  }
+}
+
+function micConstraints(deviceId) {
+  const audio = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    latency: { ideal: 0 },
+  };
+  if (deviceId) audio.deviceId = { exact: deviceId };
+  return { audio };
+}
+
+// List input devices and let the user switch without re-granting permission.
+async function refreshMicDevices() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  let devices = [];
+  try { devices = await navigator.mediaDevices.enumerateDevices(); } catch (e) { return; }
+  const sel = $('micSelect');
+  sel.innerHTML = '';
+  let n = 0;
+  for (const d of devices) {
+    if (d.kind !== 'audioinput' || !d.deviceId) continue;
+    n++;
+    const o = document.createElement('option');
+    o.value = d.deviceId;
+    o.textContent = d.label || ('Microphone ' + n);
+    sel.appendChild(o);
+  }
+  if (!n) { sel.disabled = true; return; }
+  sel.disabled = false;
+  if (selectedMicId && [...sel.options].some(o => o.value === selectedMicId)) sel.value = selectedMicId;
+  else sel.value = sel.options[0].value;
+}
+
+async function switchMic(deviceId) {
+  if (!micOn || !analyser) return;
+  if (recording) stopRecording(false);
+  try {
+    const stream = await getUserMediaCompat(micConstraints(deviceId));
+    if (micSource) { try { micSource.disconnect(); } catch (e) {} }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); }
+    micStream = stream;
+    micSource = AC.createMediaStreamSource(stream);
+    micSource.connect(analyser);
+    const track = stream.getAudioTracks()[0];
+    selectedMicId = (track && track.getSettings().deviceId) || deviceId;
+    liveFrames.length = 0;
+    smoothPitch = 0;
+    pitchRing.length = 0;
+    $('micStatus').textContent = 'listening \u00b7 ' + (track && track.label ? track.label : 'selected device');
+    $('micStatus').style.color = '';
+    await refreshMicDevices();
+  } catch (e) {
+    $('micStatus').textContent = 'could not switch mic: ' + e.message;
+    await refreshMicDevices();
+  }
+}
+
+function stopMic() {
+  if (recording) stopRecording(false);
+  if (micSource) { try { micSource.disconnect(); } catch (e) {} micSource = null; }
+  if (analyser) { try { analyser.disconnect(); } catch (e) {} }
+  if (silentSink) { try { silentSink.disconnect(); } catch (e) {} silentSink = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  analyser = null;
+  micOn = false;
+  micValue = -1;
+  smoothPitch = 0;
+  pitchRing.length = 0;
+  liveFrames.length = 0;
+  liveTail.length = 0;
+  latestFreq.fill(0);
+  updateRunning();
+  $('micBtn').textContent = 'Start mic';
+  $('micBtn').classList.remove('on');
+  $('micStatus').textContent = 'mic off';
+}
+
+// ---------------------------------------------------------------- reference playback
+function playbackPos() {
+  if (!refPlaying || !refBuffer) return -1;
+  let pos = (AC.currentTime - refStartedAt) * refRate;
+  if (refSource && refSource.loop) pos = pos % refBuffer.duration;
+  else pos = Math.min(pos, refBuffer.duration);
+  return pos;
+}
+
+function stopSource() {
+  if (refSource) {
+    try { refSource.onended = null; refSource.stop(); } catch (e) {}
+    try { refSource.disconnect(); } catch (e) {}
+    refSource = null;
+  }
+}
+
+function clearRepeatTimer() {
+  if (repeatTimer) { clearTimeout(repeatTimer); repeatTimer = null; }
+}
+
+function playRef() {
+  if (!refBuffer) return;
+  const ac = ensureAudio();
+  clearRepeatTimer();
+  stopSource();
+
+  const wantLoop = $('loopChk').checked;
+  const delay = Math.max(0, state.repeatDelay || 0);
+
+  refSource = ac.createBufferSource();
+  refSource.buffer = refBuffer;
+  // Native looping is gapless, so use it only when no repeat delay is wanted.
+  refSource.loop = wantLoop && delay <= 0;
+  const rate = Math.max(0.5, Math.min(1, state.playbackRate || 1));
+  refSource.playbackRate.value = rate;
+  refSource.connect(ac.destination);
+
+  refSource.onended = () => {
+    if (!wantLoop) {
+      refPlaying = false;
+      refPending = false;
+      refOffset = 0;
+      updateRunning();
+      updateRefButtons();
+      return;
+    }
+    // Pause before repeating; the gap is left visible in the pitch trace.
+    refPlaying = false;
+    refPending = true;
+    refOffset = 0;
+    lastRefPos = -1;
+    updateRunning();
+    updateRefButtons();
+    const wait = Math.max(0, state.repeatDelay || 0) * 1000;
+    repeatTimer = setTimeout(() => {
+      repeatTimer = null;
+      refPending = false;
+      if ($('loopChk').checked) playRef();
+      else { updateRunning(); updateRefButtons(); }
+    }, wait);
+  };
+
+  refSource.start(0, refOffset % refBuffer.duration);
+  refStartedAt = ac.currentTime - refOffset / rate;
+  refRate = rate;
+  refPlaying = true;
+  refPending = false;
+  lastRefPos = -1;
+  updateRunning();
+  updateRefButtons();
+  hideHelp();
+}
+
+function pauseRef() {
+  if (!refPlaying) return;
+  refOffset = Math.max(0, playbackPos());
+  stopSource();
+  refPlaying = false;
+  updateRunning();
+  updateRefButtons();
+}
+
+function stopRef() {
+  clearRepeatTimer();
+  stopSource();
+  refPlaying = false;
+  refPending = false;
+  refOffset = 0;
+  lastRefPos = -1;
+  updateRunning();
+  updateRefButtons();
+}
+
+function updateRefButtons() {
+  if (refPending) { $('playBtn').textContent = '\u25B6 Play now'; return; }
+  $('playBtn').textContent = refPlaying ? '\u23F8 Pause' : '\u25B6 Play';
+}
+
+function updateRunning() {
+  state.running = micOn || refPlaying || refPending || recPlaying;
+}
+
+// ---------------------------------------------------------------- recording
+function pickRecMime() {
+  if (!window.MediaRecorder) return null;
+  const cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (const t of cands) {
+    try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {}
+  }
+  return '';
+}
+
+async function toggleRecording() {
+  if (recording) { stopRecording(false); return; }
+  if (!micOn) { await startMic(); if (!micOn) return; }
+  beginRec();
+}
+
+function beginRec() {
+  if (recording || !micStream) return;
+  if (!window.MediaRecorder) { $('recInfo').textContent = 'MediaRecorder not supported in this browser.'; return; }
+  if (state.pauseRefOnRec && refPlaying) pauseRef(); // avoid capturing the reference through speakers
+  const chunks = [];
+  const mime = pickRecMime();
+  try {
+    mediaRecorder = mime ? new MediaRecorder(micStream, { mimeType: mime }) : new MediaRecorder(micStream);
+  } catch (e) {
+    $('recInfo').textContent = 'recording error: ' + e.message;
+    return;
+  }
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  mediaRecorder.onstop = () => finalizeRec(chunks);
+  mediaRecorder.start();
+  recording = true;
+  updateRecUI();
+}
+
+function stopRecording(autoPlay) {
+  if (!recording || !mediaRecorder) {
+    if (autoPlay) playRec();
+    return;
+  }
+  recording = false;
+  recAutoPlay = !!autoPlay;
+  updateRecUI();
+  try { mediaRecorder.stop(); } catch (e) {}
+  mediaRecorder = null;
+}
+
+async function finalizeRec(chunks) {
+  if (!chunks || !chunks.length) { $('recInfo').textContent = 'no audio captured'; return; }
+  const seq = ++recAnalysisSeq;
+  $('recInfo').textContent = 'processing clip\u2026';
+  try {
+    const blob = new Blob(chunks, { type: chunks[0].type || '' });
+    const arr = await blob.arrayBuffer();
+    const ab = await ensureAudio().decodeAudioData(arr);
+    if (seq !== recAnalysisSeq) return; // superseded by a newer recording
+    recBuffer = ab;
+    const { times, freqs } = await analyzeBuffer(ab, p => {
+      if (seq === recAnalysisSeq) $('recInfo').textContent = 'analyzing clip\u2026 ' + Math.round(p * 100) + '%';
+    });
+    if (seq !== recAnalysisSeq) return;
+    recTimes = times;
+    recFreqs = freqs;
+    recLastPos = -1;
+    $('replayBtn').disabled = false;
+    $('downloadBtn').disabled = false;
+    const voiced = freqs.filter(f => f > 0).length;
+    $('recInfo').textContent =
+      'clip: ' + ab.duration.toFixed(2) + 's \u00b7 ' + voiced + ' voiced frames \u00b7 ' + methodLabel();
+    if (recAutoPlay) { recAutoPlay = false; playRec(); }
+  } catch (e) {
+    if (seq === recAnalysisSeq) $('recInfo').textContent = 'clip error: ' + e.message;
+  }
+}
+
+function recPlayPos() {
+  if (!recPlaying || !recBuffer) return -1;
+  const t = AC.currentTime - recStartedAt;
+  return t > recBuffer.duration ? -1 : t;
+}
+
+function stopRecSource() {
+  if (recSource) {
+    try { recSource.onended = null; recSource.stop(); } catch (e) {}
+    try { recSource.disconnect(); } catch (e) {}
+    recSource = null;
+  }
+}
+
+function playRec() {
+  if (!recBuffer) return;
+  const ac = ensureAudio();
+  stopRecSource();
+  recSource = ac.createBufferSource();
+  recSource.buffer = recBuffer;
+  recSource.connect(ac.destination);
+  recSource.onended = () => { recPlaying = false; recLastPos = -1; updateRunning(); };
+  recSource.start();
+  recStartedAt = ac.currentTime;
+  recPlaying = true;
+  recLastPos = -1;
+  updateRunning();
+  hideHelp();
+}
+
+function updateRecUI() {
+  $('recBtn').textContent = recording ? '\u25A0 Stop' : '\u25CF Rec';
+  $('recBtn').classList.toggle('on', recording);
+  $('recBadge').classList.toggle('on', recording);
+}
+
+// Encode the recorded AudioBuffer as a 16-bit PCM WAV for download.
+function audioBufferToWav(ab) {
+  const numCh = ab.numberOfChannels;
+  const sr = ab.sampleRate;
+  const len = ab.length;
+  const blockAlign = numCh * 2;
+  const dataSize = len * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  let p = 0;
+  const wstr = s => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
+  const u32 = v => { view.setUint32(p, v, true); p += 4; };
+  const u16 = v => { view.setUint16(p, v, true); p += 2; };
+  wstr('RIFF'); u32(36 + dataSize); wstr('WAVE');
+  wstr('fmt '); u32(16); u16(1); u16(numCh); u32(sr);
+  u32(sr * blockAlign); u16(blockAlign); u16(16);
+  wstr('data'); u32(dataSize);
+  const chans = [];
+  for (let c = 0; c < numCh; c++) chans.push(ab.getChannelData(c));
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < numCh; c++) {
+      let s = Math.max(-1, Math.min(1, chans[c][i]));
+      view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      p += 2;
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function downloadRecording() {
+  if (!recBuffer) return;
+  const url = URL.createObjectURL(audioBufferToWav(recBuffer));
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'recording-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) +
+    '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.wav';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Push-to-talk: called on V keydown; release stops and plays back.
+async function pushToTalkStart() {
+  if (recording) return;
+  if (!micOn) { await startMic(); if (!micOn) return; }
+  if (!pttHeld) return; // released while the mic was still starting up
+  if (!recording) beginRec();
+}
+
+// ---------------------------------------------------------------- file analysis
+function downsampleBuffer(ab, target) {
+  const sr = ab.sampleRate;
+  const ch = ab.getChannelData(0);
+  const ds = Math.max(1, Math.round(sr / target));
+  const dsr = sr / ds;
+  const n = Math.floor(ch.length / ds);
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    const a = i * ds;
+    const b = Math.min(a + ds, ch.length);
+    for (let j = a; j < b; j++) s += ch[j];
+    x[i] = s / (b - a);
+  }
+  return { x, dsr, dur: n / dsr };
+}
+
+async function analyzeBuffer(ab, onProgress) {
+  if (state.method === 'none') return { times: [], freqs: [], truncated: false };
+  if (state.method === 'praat') return analyzeBufferPraat(ab, onProgress);
+  return analyzeBufferSimple(ab, onProgress);
+}
+
+async function analyzeBufferPraat(ab, onProgress) {
+  const { x, dsr, dur } = downsampleBuffer(ab, 12000);
+  const n = x.length;
+  const floor = Math.max(40, state.minF * 0.8);
+  const ceiling = Math.max(floor * 1.2, state.maxF * 1.3);
+  const p = praatOpts(floor, ceiling);
+  const win = Math.max(64, Math.round((3 / Math.max(40, state.minF)) * dsr)); // Praat window length
+  const hop = Math.max(1, Math.round(0.01 * dsr));
+  const maxFrames = Math.floor(60 / 0.01);
+
+  // Praat-style relative silence threshold (3% of the peak amplitude).
+  let peak = 0;
+  for (let i = 0; i < n; i++) { const a = Math.abs(x[i]); if (a > peak) peak = a; }
+  const sil = Math.max(0.001, 0.03 * peak);
+
+  const frames = [], times = [];
+
+  let frame = 0;
+  for (let start = 0; start + win <= n && frame < maxFrames; start += hop, frame++) {
+    frames.push(praatCandidates(x.subarray(start, start + win), dsr, floor, ceiling, sil));
+    times.push(start / dsr);
+    if ((frame & 255) === 0) {
+      if (onProgress) onProgress(frame / maxFrames);
+      await new Promise(res => setTimeout(res, 0));
+    }
+  }
+
+  const chosen = praatViterbi(frames, p);
+  let freqs = chosen.map((st, t) => (st > 0 ? frames[t].candidates[st - 1].f : -1));
+  freqs = praatPostFilter(freqs, 2);
+  return { times, freqs, truncated: dur > 60 };
+}
+
+async function analyzeBufferSimple(ab, onProgress) {
+  const { x, dsr, dur } = downsampleBuffer(ab, 12000);
+  const n = x.length;
+  const win = Math.round(0.04 * dsr);
+  const hop = Math.round(0.01 * dsr);
+  const maxFrames = Math.floor(60 / 0.01); // cap analysis at 60 s
+  const times = [], freqs = [];
+
+  let frame = 0;
+  for (let start = 0; start + win <= n && frame < maxFrames; start += hop, frame++) {
+    const seg = x.subarray(start, start + win);
+    const r = detectPitch(seg, dsr, state.minF, state.maxF);
+    const f = (r.freq > 0 && r.clarity > 0.5) ? r.freq : -1;
+    times.push(start / dsr);
+    freqs.push(f);
+    if ((frame & 255) === 0) {
+      if (onProgress) onProgress(frame / maxFrames);
+      await new Promise(res => setTimeout(res, 0));
+    }
+  }
+
+  // Octave correction across frames.
+  let prev = 0;
+  for (let i = 0; i < freqs.length; i++) {
+    if (freqs[i] > 0) {
+      let f = freqs[i];
+      if (prev > 0) {
+        let ratio = f / prev;
+        while (ratio > 1.8) { f /= 2; ratio = f / prev; }
+        while (ratio < 0.55) { f *= 2; ratio = f / prev; }
+      }
+      if (f >= state.minF * 0.9 && f <= state.maxF * 1.1) { freqs[i] = f; prev = f; }
+      else freqs[i] = -1;
+    }
+  }
+
+  return { times, freqs, truncated: dur > 60 };
+}
+
+// ---------------------------------------------------------------- UI wiring
+function hideHelp() {
+  $('help').classList.add('hidden');
+}
+
+$('micBtn').addEventListener('click', () => { micOn ? stopMic() : startMic(); });
+$('micSelect').addEventListener('change', () => {
+  selectedMicId = $('micSelect').value;
+  if (micOn) switchMic(selectedMicId);
+});
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', () => { if (micOn) refreshMicDevices(); });
+}
+
+async function loadReferenceFile(file) {
+  if (!file) return;
+  if (file.type && !file.type.startsWith('audio/') &&
+      !/\.(wav|mp3|m4a|aac|ogg|oga|opus|flac|aif|aiff|webm)$/i.test(file.name)) {
+    $('refInfo').textContent = 'not an audio file: ' + file.name;
+    return;
+  }
+  const seq = ++refAnalysisSeq;
+  const ac = ensureAudio();
+  stopRef();
+  $('refInfo').textContent = 'decoding\u2026';
+  try {
+    const arr = await file.arrayBuffer();
+    const ab = await ac.decodeAudioData(arr);
+    if (seq !== refAnalysisSeq) return; // superseded by a newer file
+    $('refInfo').textContent = 'analyzing pitch\u2026 0%';
+    await new Promise(r => setTimeout(r, 30));
+    const { times, freqs, truncated } = await analyzeBuffer(ab, p => {
+      if (seq === refAnalysisSeq) $('refInfo').textContent = 'analyzing pitch\u2026 ' + Math.round(p * 100) + '%';
+    });
+    if (seq !== refAnalysisSeq) return;
+    refBuffer = ab;
+    refTimes = times;
+    refFreqs = freqs;
+    refOffset = 0;
+    refPlaying = false;
+    lastRefPos = -1;
+    const voiced = freqs.filter(f => f > 0).length;
+    $('refInfo').textContent =
+      file.name + ' \u2014 ' + ab.duration.toFixed(2) + 's, ' + voiced + ' voiced frames' +
+      (truncated ? ' (analyzed first 60s)' : '');
+    $('playBtn').disabled = false;
+    $('stopBtn').disabled = false;
+    updateRefButtons();
+    hideHelp();
+  } catch (err) {
+    if (seq === refAnalysisSeq) $('refInfo').textContent = 'error: ' + err.message;
+  }
+}
+
+$('fileInput').addEventListener('change', e => loadReferenceFile(e.target.files[0]));
+
+// Whole-window drag & drop.
+let dragDepth = 0;
+const isFileDrag = e => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+window.addEventListener('dragenter', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  $('dropzone').classList.add('on');
+});
+window.addEventListener('dragover', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) $('dropzone').classList.remove('on');
+});
+window.addEventListener('drop', e => {
+  dragDepth = 0;
+  $('dropzone').classList.remove('on');
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadReferenceFile(f);
+});
+
+// A browser may restore the filename in the file input after a refresh, but the
+// decoded audio is gone, so clear it rather than show a file that cannot play.
+// (Skip on bfcache restores, where our JS state and the buffer are preserved.)
+function clearStaleFile() {
+  $('fileInput').value = '';
+  $('refInfo').textContent = '';
+  $('playBtn').disabled = true;
+  $('stopBtn').disabled = true;
+}
+clearStaleFile();
+window.addEventListener('load', clearStaleFile);
+window.addEventListener('pageshow', e => { if (!e.persisted) clearStaleFile(); });
+
+$('playBtn').addEventListener('click', () => { refPlaying ? pauseRef() : playRef(); });
+$('stopBtn').addEventListener('click', stopRef);
+$('recBtn').addEventListener('click', toggleRecording);
+
+// Hold-to-record button: press and hold to record, release to play it back
+// (same behaviour as the V hotkey, for mouse/touch users).
+const holdBtn = $('holdBtn');
+holdBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  holdBtn.classList.add('on');
+  try { holdBtn.setPointerCapture(e.pointerId); } catch (err) {}
+  if (!pttHeld) { pttHeld = true; pushToTalkStart(); }
+});
+function endHold() {
+  holdBtn.classList.remove('on');
+  if (pttHeld) { pttHeld = false; if (recording) stopRecording(true); }
+}
+holdBtn.addEventListener('pointerup', endHold);
+holdBtn.addEventListener('pointercancel', endHold);
+holdBtn.addEventListener('lostpointercapture', endHold);
+$('replayBtn').addEventListener('click', playRec);
+$('downloadBtn').addEventListener('click', downloadRecording);
+$('pauseRefChk').addEventListener('change', e => { state.pauseRefOnRec = e.target.checked; persistSettings(); });
+
+$('methodSel').addEventListener('change', e => {
+  state.method = e.target.value;
+  smoothPitch = 0;
+  pitchRing.length = 0;
+  liveFrames.length = 0;
+  liveTail.length = 0;
+  $('recInfo').textContent = 'detector: ' + methodLabel() +
+    ' \u00b7 applies to live audio and new recordings/loads';
+  persistSettings();
+});
+
+$('loopChk').addEventListener('change', () => {
+  clearRepeatTimer();
+  if (refPlaying) {
+    refOffset = Math.max(0, playbackPos());
+    playRef();
+  } else if (refPending) {
+    playRef();
+  } else {
+    updateRunning();
+  }
+  persistSettings();
+});
+
+$('repeatDelay').addEventListener('change', () => {
+  if (refPlaying) {
+    refOffset = Math.max(0, playbackPos());
+    playRef();
+  }
+});
+
+loadSettings();
+
+// Playback speed: preserve the current buffer position when it changes.
+function updateRateLabel() {
+  $('rateVal').textContent = state.playbackRate.toFixed(2) + '\u00d7';
+}
+$('playbackRate').value = state.playbackRate;
+updateRateLabel();
+$('playbackRate').addEventListener('input', () => {
+  const pos = refPlaying ? Math.max(0, playbackPos()) : refOffset;
+  state.playbackRate = parseFloat($('playbackRate').value);
+  updateRateLabel();
+  if (refPlaying) { refOffset = pos; playRef(); }
+  persistSettings();
+});
+
+function bindRange(id, key, labelId, fmt) {
+  const el = $(id);
+  el.value = state[key];
+  $(labelId).textContent = fmt ? fmt(state[key]) : state[key];
+  el.addEventListener('input', () => {
+    state[key] = parseFloat(el.value);
+    // keep the frequency window valid (low < high)
+    if (key === 'minF' && state.minF > state.maxF - 20) {
+      state.maxF = state.minF + 20;
+      $('maxF').value = state.maxF;
+      $('maxVal').textContent = state.maxF;
+    }
+    if (key === 'maxF' && state.maxF < state.minF + 20) {
+      state.minF = state.maxF - 20;
+      $('minF').value = state.minF;
+      $('minVal').textContent = state.minF;
+    }
+    $(labelId).textContent = fmt ? fmt(state[key]) : state[key];
+    // Old spectrogram pixels were drawn for the previous frequency window, so
+    // clear them instead of leaving them vertically misaligned with the pitch line.
+    if (key === 'minF' || key === 'maxF') clearSpec();
+    persistSettings();
+  });
+}
+
+bindRange('minF', 'minF', 'minVal', v => Math.round(v));
+bindRange('maxF', 'maxF', 'maxVal', v => Math.round(v));
+bindRange('speed', 'speed', 'spdVal', v => Math.round(v));
+bindRange('repeatDelay', 'repeatDelay', 'delayVal', v => v.toFixed(1));
+
+// Reflect any restored settings in the checkboxes / selects.
+$('specChk').checked = state.showSpec;
+$('gridChk').checked = state.showGrid;
+$('logChk').checked = state.logScale;
+$('methodSel').value = state.method;
+$('loopChk').checked = savedUI.loop;
+$('pauseRefChk').checked = state.pauseRefOnRec;
+['secRef', 'secRec', 'secDisplay'].forEach(id => {
+  $(id).open = !!savedUI.sections[id];
+  $(id).addEventListener('toggle', persistSettings);
+});
+
+$('specChk').addEventListener('change', e => { state.showSpec = e.target.checked; persistSettings(); });
+$('gridChk').addEventListener('change', e => { state.showGrid = e.target.checked; persistSettings(); });
+$('logChk').addEventListener('change', e => {
+  state.logScale = e.target.checked;
+  // Spectrogram pixels were baked with the previous vertical mapping.
+  clearSpec();
+  persistSettings();
+});
+
+$('clearBtn').addEventListener('click', () => {
+  clearSpec();
+  micHist.length = 0;
+  refHist.length = 0;
+  playHist.length = 0;
+  stepCount = 0;
+  lastRefPos = -1;
+  recLastPos = -1;
+});
+
+function setPanelHidden(hidden) {
+  document.body.classList.toggle('panel-hidden', hidden);
+  persistSettings();
+}
+
+function setPaused(p) {
+  state.paused = p;
+  $('pauseBtn').textContent = p ? '\u25B6 Resume' : '\u23F8 Pause';
+  $('pauseBtn').classList.toggle('on', p);
+  // Avoid a long connecting segment across the frozen interval.
+  lastRefPos = -1;
+  recLastPos = -1;
+}
+$('pauseBtn').addEventListener('click', () => setPaused(!state.paused));
+$('hideBtn').addEventListener('click', () => setPanelHidden(true));
+$('togglePanel').addEventListener('click', () => setPanelHidden(false));
+
+window.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // leave Ctrl/Cmd/Alt shortcuts alone
+  // Push-to-talk on V: handled before the input guard so it works no matter
+  // what control has focus, and V has no default action on buttons/checkboxes.
+  if (e.key === 'v' || e.key === 'V') {
+    e.preventDefault();
+    const ae = document.activeElement;
+    if (ae && ae !== document.body) ae.blur();
+    if (!pttHeld) { pttHeld = true; pushToTalkStart(); }
+    return;
+  }
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (e.repeat) return;
+  if (e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    toggleRecording();
+  } else if (e.key === 'p' || e.key === 'P') {
+    e.preventDefault();
+    playRec();
+  } else if (e.key === 's' || e.key === 'S') {
+    e.preventDefault();
+    setPaused(!state.paused);
+  } else if (e.key === 'h' || e.key === 'H') {
+    setPanelHidden(!document.body.classList.contains('panel-hidden'));
+  } else if (e.key === 'Escape') {
+    setPanelHidden(false);
+  }
+});
+
+window.addEventListener('keyup', e => {
+  if (e.key === 'v' || e.key === 'V') {
+    if (pttHeld) { pttHeld = false; if (recording) stopRecording(true); }
+  }
+});
+
+// Resume audio on any user gesture (some browsers start suspended).
+['click', 'keydown', 'touchstart'].forEach(ev =>
+  window.addEventListener(ev, () => { if (AC && AC.state === 'suspended') AC.resume(); }, { passive: true })
+);
+
+window.addEventListener('resize', resize);
+
+// ---------------------------------------------------------------- boot
+resize();
+setPanelHidden(savedUI.panelHidden);
+refreshMicDevices();
+(function checkMicEnvironment() {
+  const p = micEnvironmentProblem();
+  if (p) {
+    $('micStatus').textContent = 'mic unavailable here';
+    $('micStatus').style.color = '#ff8a3d';
+  }
+})();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
