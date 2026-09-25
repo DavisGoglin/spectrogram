@@ -87,3 +87,7 @@ python3 serve.py
   general spectrogram.
 - Pitch method follows the spirit of Praat's autocorrelation pitch analysis
   (Boersma) and YIN (de Cheveigné & Kawahara, 2002).
+
+## License
+
+MIT assuming there isn't any copied code in here from incompatible licenses
